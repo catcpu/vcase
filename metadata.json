@@ -1,0 +1,5 @@
+{
+  "name": "下肢静脉曲张与血栓模拟",
+  "description": "下肢静脉曲张的综合3D风格交互式演示，可视化血流动力学、血栓形成以及血栓脱落（栓塞）的关键时刻。集成 Gemini 进行医学讲解。",
+  "requestFramePermissions": []
+}
