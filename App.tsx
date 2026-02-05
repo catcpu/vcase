@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import VeinVisualizer from './components/VeinVisualizer';
 import { SimulationState, MedicalExplanation } from './types';
@@ -43,7 +44,6 @@ const App: React.FC = () => {
   // Helper to determine active step styling
   const getStepStyle = (stepState: SimulationState) => {
     const isActive = simulationState === stepState;
-    const isPast = false; // Simplified for linear progression
     
     if (isActive) {
         switch(stepState) {
@@ -146,7 +146,7 @@ const App: React.FC = () => {
                 
                 {/* Footer decoration */}
                 <div className="bg-slate-950/50 p-2 px-6 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-500 font-mono">
-                    <span>DATA SOURCE: GEMINI-2.5</span>
+                    <span>DATA SOURCE: GEMINI-3-FLASH</span>
                     <span>ID: 84-XJ-09</span>
                 </div>
             </div>

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { SimulationState, MedicalExplanation } from "../types";
 
@@ -11,6 +12,7 @@ const SYSTEM_INSTRUCTION = `你是一名血管外科医生和医学教育家，�
 请务必使用简体中文回答。`;
 
 export const fetchExplanation = async (state: SimulationState): Promise<MedicalExplanation> => {
+  // 使用最新的推荐模型
   const modelId = "gemini-3-flash-preview";
   
   let prompt = "";
