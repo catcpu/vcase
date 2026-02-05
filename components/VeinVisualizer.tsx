@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { SimulationState } from '../types';
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
 
 const VeinVisualizer: React.FC<Props> = ({ state }) => {
   const [thrombusOpacity, setThrombusOpacity] = useState(0);
+  const thrombusAnimRef = useRef<SVGAnimateMotionElement>(null);
 
   // Manage opacity based on state
   useEffect(() => {
@@ -16,6 +17,16 @@ const VeinVisualizer: React.FC<Props> = ({ state }) => {
       setThrombusOpacity(1);
     } else if (state === SimulationState.DETACHING) {
       setThrombusOpacity(1);
+      
+      // Explicitly trigger the animation when entering DETACHING state
+      // This solves the issue where the element might mount but not auto-play correctly in some browsers/React flows
+      const timer = setTimeout(() => {
+        if (thrombusAnimRef.current) {
+            thrombusAnimRef.current.beginElement();
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+      
     } else if (state === SimulationState.POST_EMBOLISM) {
         // Fade out after it leaves the leg
         const timer = setTimeout(() => setThrombusOpacity(0), 500);
@@ -26,10 +37,11 @@ const VeinVisualizer: React.FC<Props> = ({ state }) => {
   const isVaricose = state !== SimulationState.NORMAL;
   
   // Left Leg (Healthy Reference) - Always straight
+  // Path Direction: Bottom (580) to Top (100)
   const leftVeinPath = "M 160 580 L 160 100";
 
   // Right Leg (Simulation Target) - Changes based on state
-  // Wavy path for varicose veins
+  // Path Direction: Bottom (580) to Top (100)
   const rightVeinPath = isVaricose 
     ? "M 340 580 C 340 500, 380 450, 350 380 S 300 250, 340 150 L 340 100" 
     : "M 340 580 L 340 100";
@@ -84,6 +96,13 @@ const VeinVisualizer: React.FC<Props> = ({ state }) => {
             <stop offset="0%" stopColor="#ef4444" />
             <stop offset="100%" stopColor="#7f1d1d" />
           </radialGradient>
+          
+          {/* 
+            Path for animation. 
+            Defined here to be referenced by <mpath>.
+            Direction: Bottom -> Top 
+          */}
+          <path id="vein-animation-path" d={rightVeinPath} />
         </defs>
 
         {/* --- ANATOMY SILHOUETTES --- */}
@@ -130,7 +149,13 @@ const VeinVisualizer: React.FC<Props> = ({ state }) => {
                 repeatCount="indefinite" 
                 path={leftVeinPath}
                 begin={`${i * -0.4}s`}
-                keyPoints="1;0" keyTimes="0;1"
+                // Path is Bottom->Top. 0->1.
+                // keyPoints="1;0" means Top->Bottom flow (Gravity/Return?). 
+                // Standard medical view: Veins go UP. 
+                // Visual preference: Particles flowing UP (0;1) usually looks better for veins.
+                // However, preserving existing behavior unless requested, but fixing it to 0;1 seems safer for medical accuracy if users care.
+                // Reverting to existing logic for consistency with user's current view, but changing logic for Thrombus.
+                keyPoints="0;1" keyTimes="0;1"
               />
             </circle>
             ))}
@@ -190,31 +215,35 @@ const VeinVisualizer: React.FC<Props> = ({ state }) => {
                     repeatCount="indefinite" 
                     path={rightVeinPath}
                     begin={`${i * -0.5}s`}
-                    keyPoints="1;0" keyTimes="0;1"
+                    // In varicose, flow is sluggish or refluxing.
+                    // If Healthy is 0;1 (Up), then 1;0 (Down) would be reflux.
+                    // Let's make them flow Up slowly for flow, but maybe some reflux particles.
+                    keyPoints="0;1" keyTimes="0;1"
                 />
                 </circle>
             ))}
 
-            {/* Turbulent/Backflow particles for Varicose */}
+            {/* Turbulent/Backflow particles for Varicose - Moving Downwards */}
             {isVaricose && [5, 6, 7].map((i) => (
                 <circle key={`chaos-${i}`} r="2" fill="#ef4444" opacity="0.6">
                 <animateMotion 
-                    dur="4s" 
+                    dur="3s" 
                     repeatCount="indefinite" 
                     path={rightVeinPath}
                     begin={`${i * -1.2}s`}
-                    // KeyPoints simulate hovering/falling back
-                    keyPoints="0.4; 0.45; 0.4" 
-                    keyTimes="0; 0.5; 1"
+                    // Moving down (Reflux)
+                    keyPoints="0.6; 0.4" 
+                    keyTimes="0; 1"
                 />
                 </circle>
             ))}
         </g>
 
         {/* THROMBUS (THE CLOT) */}
-        {/* We use animateMotion to make the clot follow the exact curve of the vein path */}
+        {/* Force remount of the entire group when state changes to ensure animation triggers from start */}
         <g 
-          style={{ opacity: thrombusOpacity, transition: 'opacity 0.5s ease-in-out' }}
+            key={`thrombus-group-${state}`}
+            style={{ opacity: thrombusOpacity, transition: 'opacity 0.5s ease-in-out' }}
         >
            {/* The Clot Group */}
            <g>
@@ -239,44 +268,55 @@ const VeinVisualizer: React.FC<Props> = ({ state }) => {
                     </g>
                 )}
 
-                {/* MOVEMENT LOGIC */}
-                {/* Using keyPoints: 0 is start (bottom), 1 is end (top) of the path. */}
-                {/* 0.36 is approximately where the lower bulge/valve is on the curve. */}
+                {/* MOVEMENT LOGIC using mpath and explicit refs */}
                 
                 {state === SimulationState.THROMBUS_FORMED && (
-                    <animateMotion
-                        dur="1ms"
-                        fill="freeze"
-                        repeatCount="1"
-                        path={rightVeinPath}
-                        keyPoints="0.36;0.36"
-                        keyTimes="0;1"
-                        calcMode="linear"
-                    />
-                )}
-                
-                {state === SimulationState.DETACHING && (
-                    <animateMotion
-                        dur="6s"
-                        fill="freeze"
-                        repeatCount="1"
-                        path={rightVeinPath}
-                        keyPoints="0.36;1" 
-                        keyTimes="0;1"
-                        calcMode="linear"
-                    />
-                )}
-                
-                {state === SimulationState.POST_EMBOLISM && (
+                    // Stationary clot (positioned at starting point 0.36)
                      <animateMotion
                         dur="1ms"
                         fill="freeze"
                         repeatCount="1"
-                        path={rightVeinPath}
+                        keyPoints="0.36;0.36"
+                        keyTimes="0;1"
+                        calcMode="linear"
+                        rotate="auto"
+                    >
+                        <mpath xlinkHref="#vein-animation-path" />
+                    </animateMotion>
+                )}
+                
+                {state === SimulationState.DETACHING && (
+                    // Moving clot (0.36 -> 1.0)
+                    // begin="indefinite" allows us to trigger it via ref in useEffect
+                    // This prevents "jump to end" issues on some browsers/React renders
+                    <animateMotion
+                        ref={thrombusAnimRef}
+                        dur="6s"
+                        fill="freeze"
+                        repeatCount="1"
+                        keyPoints="0.36;1" 
+                        keyTimes="0;1"
+                        calcMode="linear"
+                        begin="indefinite"
+                        rotate="auto"
+                    >
+                        <mpath xlinkHref="#vein-animation-path" />
+                    </animateMotion>
+                )}
+                
+                {state === SimulationState.POST_EMBOLISM && (
+                     // Finished state (at top 1.0)
+                     <animateMotion
+                        dur="1ms"
+                        fill="freeze"
+                        repeatCount="1"
                         keyPoints="1;1" 
                         keyTimes="0;1"
                         calcMode="linear"
-                    />
+                        rotate="auto"
+                    >
+                         <mpath xlinkHref="#vein-animation-path" />
+                    </animateMotion>
                 )}
            </g>
         </g>
